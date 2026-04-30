@@ -22,8 +22,14 @@ from prodlib.deal import Deal, OrderItem, WarehouseRecord, WarehouseItem, list_d
 from prodlib.core import Product
 
 
+_log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "deal-editor.log")
 def log(msg):
     print(f"[deal-editor] {msg}", file=sys.stderr, flush=True)
+    try:
+        with open(_log_path, "a") as f:
+            f.write(f"{msg}\n")
+    except Exception:
+        pass
 
 
 def log_error(msg):
