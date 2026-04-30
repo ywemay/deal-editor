@@ -241,6 +241,13 @@ def main():
         if arg_path.endswith(".deal") and os.path.isfile(arg_path):
             file_to_open = os.path.realpath(arg_path)
 
+    # Write launch file BEFORE creating the window — frontend checks this on load
+    if file_to_open:
+        info_path = os.path.join(_this_dir, "data", "launch_file.json")
+        os.makedirs(os.path.dirname(info_path), exist_ok=True)
+        with open(info_path, "w") as f:
+            json.dump({"path": file_to_open}, f)
+
     t = threading.Thread(target=start_server, daemon=True)
     t.start()
 
@@ -252,12 +259,6 @@ def main():
         resizable=True,
         text_select=True,
     )
-
-    if file_to_open:
-        info_path = os.path.join(_this_dir, "data", "launch_file.json")
-        os.makedirs(os.path.dirname(info_path), exist_ok=True)
-        with open(info_path, "w") as f:
-            json.dump({"path": file_to_open}, f)
 
     webview.start(debug=False)
 
