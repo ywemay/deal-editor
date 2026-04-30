@@ -64,7 +64,31 @@ if bottle is not None:
     def api_health():
         return json_ok({"status": "ok", "version": "1.0.0"})
 
-    # ── Open a .deal file ──
+    @bottle_app.get("/api/open")
+    def api_open_launch():
+        """GET: Load the deal from the launch file (set when app launched with a file arg)."""
+        try:
+            info_path = os.path.join(_this_dir, "data", "launch_file.json")
+            if not os.path.isfile(info_path):
+                return json_ok({"ok": False})
+            with open(info_path, "r") as f:
+                launch = json.load(f)
+            path = launch.get("path", "")
+            if not path or not os.path.isfile(path):
+                return json_ok({"ok": False})
+            d = Deal.load(path)
+            return json_ok({
+                "ok": True,
+                "data": {
+                    "deal": d.to_dict(),
+                    "filepath": path,
+                    "directory": d.directory,
+                }
+            })
+        except Exception as e:
+            return json_err(str(e))
+
+    # ── Open a .deal file (POST with path) ──
     @bottle_app.post("/api/open")
     def api_open():
         """Load a .deal file and return its data."""
