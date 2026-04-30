@@ -247,6 +247,9 @@ def main():
         os.makedirs(os.path.dirname(info_path), exist_ok=True)
         with open(info_path, "w") as f:
             json.dump({"path": file_to_open}, f)
+        log(f"Launch file written: {file_to_open}")
+    else:
+        log("No file argument — start page will be shown")
 
     t = threading.Thread(target=start_server, daemon=True)
     t.start()
