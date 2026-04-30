@@ -169,7 +169,7 @@ if bottle is not None:
         try:
             file_types = ("Deal files (*.deal)",)
             result = webview.windows[0].create_file_dialog(
-                webview.OPEN_DIALOG, allow_multiple=False,
+                webview.FileDialog.OPEN, allow_multiple=False,
                 file_types=file_types
             )
             path = result[0] if result else ""
@@ -183,7 +183,7 @@ if bottle is not None:
         """Open a native directory picker."""
         try:
             result = webview.windows[0].create_file_dialog(
-                webview.FOLDER_DIALOG
+                webview.FileDialog.FOLDER
             )
             path = result[0] if result else ""
             return json_ok({"path": path})

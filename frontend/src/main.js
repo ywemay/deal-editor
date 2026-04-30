@@ -18,6 +18,22 @@ function setState(partial) {
 
 function init() {
     bindEvents();
+    // Check if launched with a file argument
+    fetch('/api/open').then(function(r) { return r.json(); }).then(function(data) {
+        if (data.ok && data.data && data.data.deal) {
+            var d = data.data;
+            appState.deal = d.deal;
+            appState.directory = d.directory;
+            appState.filename = d.deal.filename || '';
+            appState.filepath = d.filepath || '';
+            appState.modified = false;
+            appState.activeTab = 'order';
+            render();
+        }
+    }).catch(function() {
+        // No launch file — show start page
+        render();
+    });
 }
 
 // ========== RENDER ==========
@@ -398,7 +414,8 @@ function renderPickerList(files) {
 
 function bindEvents() {
     document.getElementById('btn-open-file').addEventListener('click', handleOpenFile);
-    document.getElementById('btn-open-file-dialog').addEventListener('click', handleOpenFile);
+    var dialogBtn = document.getElementById('btn-open-file-dialog');
+    if (dialogBtn) dialogBtn.addEventListener('click', handleOpenFile);
     document.getElementById('btn-new-deal').addEventListener('click', handleNewDeal);
     document.getElementById('btn-close-file').addEventListener('click', handleCloseFile);
     document.getElementById('btn-save').addEventListener('click', handleSave);
