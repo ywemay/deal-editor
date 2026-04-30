@@ -72,26 +72,40 @@ if bottle is not None:
 
     @bottle_app.get("/api/open")
     def api_open_launch():
-        """GET: Load the deal from the launch file (set when app launched with a file arg)."""
+        """GET: Load the deal from launch query param or launch file."""
         try:
-            info_path = os.path.join(_this_dir, "data", "launch_file.json")
-            if not os.path.isfile(info_path):
-                return json_ok({"ok": False})
-            with open(info_path, "r") as f:
-                launch = json.load(f)
-            path = launch.get("path", "")
-            if not path or not os.path.isfile(path):
-                return json_ok({"ok": False})
-            d = Deal.load(path)
-            return json_ok({
-                "ok": True,
-                "data": {
-                    "deal": d.to_dict(),
-                    "filepath": path,
-                    "directory": d.directory,
-                }
-            })
+            # Check query param (?launch=/path/to/file.deal)
+            path = request.query.get("launch", "")
+            if path and os.path.isfile(path):
+                log(f"Using launch query param: {path}")
+                d = Deal.load(path)
+                return json_ok({
+                    "ok": True,
+                    "data": {
+                        "deal": d.to_dict(),
+                        "filepath": path,
+                        "directory": d.directory,
+                    }
+                })
+            # Fallback: read fixed launch file
+            info_path = os.path.join(os.path.expanduser("~/.local/share/deal-editor"), "launch_file.json")
+            if os.path.isfile(info_path):
+                with open(info_path, "r") as f:
+                    launch = json.load(f)
+                path = launch.get("path", "")
+                if path and os.path.isfile(path):
+                    d = Deal.load(path)
+                    return json_ok({
+                        "ok": True,
+                        "data": {
+                            "deal": d.to_dict(),
+                            "filepath": path,
+                            "directory": d.directory,
+                        }
+                    })
+            return json_ok({"ok": False})
         except Exception as e:
+            log(f"Error in api_open_launch: {e}")
             return json_err(str(e))
 
     # ── Open a .deal file (POST with path) ──
@@ -248,21 +262,26 @@ def main():
             file_to_open = os.path.realpath(arg_path)
 
     # Write launch file BEFORE creating the window — frontend checks this on load
+    # Write launch file to a fixed absolute path (not relative to _this_dir — PyInstaller temp bug)
     if file_to_open:
-        info_path = os.path.join(_this_dir, "data", "launch_file.json")
+        info_path = os.path.join(os.path.expanduser("~/.local/share/deal-editor"), "launch_file.json")
         os.makedirs(os.path.dirname(info_path), exist_ok=True)
         with open(info_path, "w") as f:
             json.dump({"path": file_to_open}, f)
-        log(f"Launch file written: {file_to_open}")
+        log(f"Launch file written to {info_path}")
     else:
         log("No file argument — start page will be shown")
 
     t = threading.Thread(target=start_server, daemon=True)
     t.start()
 
+    launch_url = "http://127.0.0.1:18093"
+    if file_to_open:
+        launch_url += "?launch=" + file_to_open
+
     webview.create_window(
         "Deal Editor",
-        "http://127.0.0.1:18093",
+        launch_url,
         width=1100,
         height=780,
         resizable=True,
