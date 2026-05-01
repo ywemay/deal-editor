@@ -1,7 +1,16 @@
-__pycache__/
-*.pyc
+# Build outputs
 dist/
 build/
-*.spec
-logs/
-data/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
