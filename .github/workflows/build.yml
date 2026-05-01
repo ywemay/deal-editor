@@ -66,8 +66,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-Linux-v${{ needs.version.outputs.tag }}
-          path: dist/Deal-Editor-Linux/
-          if-no-files-found: warn
+          path: dist/Deal-Editor-Linux
+          if-no-files-found: error
 
   macos:
     needs: [version]
@@ -163,7 +163,6 @@ jobs:
           pyinstaller \
             --onedir --windowed \
             --name "${{ env.APP_NAME }}" \
-            --icon app.icns \
             --add-data "frontend;frontend" \
             --hidden-import prodlib \
             --hidden-import prodlib.deal \
@@ -186,7 +185,7 @@ jobs:
         with:
           name: ${{ env.APP_NAME }}-Windows-v${{ needs.version.outputs.tag }}
           path: dist/${{ env.APP_NAME }}/
-          if-no-files-found: warn
+          if-no-files-found: error
 
   release:
     needs: [version, linux, macos, windows]
