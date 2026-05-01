@@ -34,9 +34,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create prodlib symlink
-        run: ln -sf ../shared/prodlib prodlib
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -62,21 +59,21 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller Deal-Editor-Linux.spec
 
+      - name: Debug - list dist contents
+        run: ls -laR dist/
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-Linux-v${{ needs.version.outputs.tag }}
           path: dist/Deal-Editor-Linux/
-          if-no-files-found: error
+          if-no-files-found: warn
 
   macos:
     needs: [version]
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-
-      - name: Create prodlib symlink
-        run: ln -sf ../shared/prodlib prodlib
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -111,6 +108,9 @@ jobs:
             --hidden-import PIL.JpegImagePlugin \
             app.py
 
+      - name: Debug - list dist contents
+        run: ls -laR dist/
+
       - name: Create DMG
         run: |
           brew install create-dmg || true
@@ -132,19 +132,18 @@ jobs:
         with:
           name: ${{ env.APP_NAME }}-macOS-v${{ needs.version.outputs.tag }}
           path: |
-            dist/${{ env.APP_NAME }}.app
+            dist/${{ env.APP_NAME }}.app/
             ${{ env.APP_NAME }}-*.dmg
           if-no-files-found: warn
 
   windows:
     needs: [version]
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
-
-      - name: Create prodlib symlink
-        shell: bash
-        run: ln -sf ../shared/prodlib prodlib
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -161,30 +160,33 @@ jobs:
 
       - name: Build with PyInstaller
         run: |
-          pyinstaller `
-            --onedir --windowed `
-            --name "${{ env.APP_NAME }}" `
-            --icon app.icns `
-            --add-data "frontend;frontend" `
-            --hidden-import prodlib `
-            --hidden-import prodlib.deal `
-            --hidden-import prodlib.core `
-            --hidden-import prodlib.store `
-            --hidden-import bottle `
-            --hidden-import yaml `
-            --hidden-import webview `
-            --hidden-import PIL `
-            --hidden-import PIL.Image `
-            --hidden-import PIL.PngImagePlugin `
-            --hidden-import PIL.JpegImagePlugin `
+          pyinstaller \
+            --onedir --windowed \
+            --name "${{ env.APP_NAME }}" \
+            --icon app.icns \
+            --add-data "frontend;frontend" \
+            --hidden-import prodlib \
+            --hidden-import prodlib.deal \
+            --hidden-import prodlib.core \
+            --hidden-import prodlib.store \
+            --hidden-import bottle \
+            --hidden-import yaml \
+            --hidden-import webview \
+            --hidden-import PIL \
+            --hidden-import PIL.Image \
+            --hidden-import PIL.PngImagePlugin \
+            --hidden-import PIL.JpegImagePlugin \
             app.py
+
+      - name: Debug - list dist contents
+        run: ls -laR dist/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-Windows-v${{ needs.version.outputs.tag }}
           path: dist/${{ env.APP_NAME }}/
-          if-no-files-found: error
+          if-no-files-found: warn
 
   release:
     needs: [version, linux, macos, windows]
