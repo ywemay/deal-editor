@@ -10,17 +10,32 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  APP_NAME: "Deal-Editor"
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: [ubuntu-24.04, windows-latest, macos-14]
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.tag.outputs.value }}
+    steps:
+      - name: Extract version from tag
+        id: tag
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [ "$TAG" = "$GITHUB_REF" ]; then
+            echo "value=dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${TAG#v}" >> "$GITHUB_OUTPUT"
+          fi
 
+  linux:
+    needs: [version]
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
+      - name: Create prodlib symlink
+        run: ln -sf ../shared/prodlib prodlib
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,8 +44,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
 
-      - name: Install system dependencies (Linux)
-        if: runner.os == 'Linux'
+      - name: Install system dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
@@ -45,11 +59,44 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build with PyInstaller (Linux)
-        if: runner.os == 'Linux'
+      - name: Build with PyInstaller
+        run: pyinstaller Deal-Editor-Linux.spec
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-Linux-v${{ needs.version.outputs.tag }}
+          path: dist/Deal-Editor-Linux/
+          if-no-files-found: error
+
+  macos:
+    needs: [version]
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create prodlib symlink
+        run: ln -sf ../shared/prodlib prodlib
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
         run: |
           pyinstaller \
-            --onedir --windowed --name "Deal-Editor-Linux" \
+            --onedir --windowed \
+            --name "${{ env.APP_NAME }}" \
+            --icon app.icns \
             --add-data "frontend:frontend" \
             --hidden-import prodlib \
             --hidden-import prodlib.deal \
@@ -57,13 +104,67 @@ jobs:
             --hidden-import prodlib.store \
             --hidden-import bottle \
             --hidden-import yaml \
+            --hidden-import webview \
+            --hidden-import PIL \
+            --hidden-import PIL.Image \
+            --hidden-import PIL.PngImagePlugin \
+            --hidden-import PIL.JpegImagePlugin \
             app.py
 
-      - name: Build with PyInstaller (Windows)
-        if: runner.os == 'Windows'
+      - name: Create DMG
+        run: |
+          brew install create-dmg || true
+          create-dmg \
+            --volname "${{ env.APP_NAME }}" \
+            --volicon app.icns \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "${{ env.APP_NAME }}.app" 175 190 \
+            --hide-extension "${{ env.APP_NAME }}.app" \
+            --app-drop-link 425 190 \
+            "${{ env.APP_NAME }}-v${{ needs.version.outputs.tag }}.dmg" \
+            "dist/${{ env.APP_NAME }}.app/" || \
+          echo "DMG creation skipped (optional)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-macOS-v${{ needs.version.outputs.tag }}
+          path: |
+            dist/${{ env.APP_NAME }}.app
+            ${{ env.APP_NAME }}-*.dmg
+          if-no-files-found: warn
+
+  windows:
+    needs: [version]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create prodlib symlink
+        shell: bash
+        run: ln -sf ../shared/prodlib prodlib
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
         run: |
           pyinstaller `
-            --onedir --windowed --name "Deal-Editor" `
+            --onedir --windowed `
+            --name "${{ env.APP_NAME }}" `
+            --icon app.icns `
             --add-data "frontend;frontend" `
             --hidden-import prodlib `
             --hidden-import prodlib.deal `
@@ -71,29 +172,39 @@ jobs:
             --hidden-import prodlib.store `
             --hidden-import bottle `
             --hidden-import yaml `
-            app.py
-
-      - name: Build with PyInstaller (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          pyinstaller \
-            --onedir --windowed --name "Deal-Editor" \
-            --add-data "frontend:frontend" \
-            --icon app.icns \
-            --hidden-import prodlib \
-            --hidden-import prodlib.deal \
-            --hidden-import prodlib.core \
-            --hidden-import prodlib.store \
-            --hidden-import bottle \
-            --hidden-import yaml \
+            --hidden-import webview `
+            --hidden-import PIL `
+            --hidden-import PIL.Image `
+            --hidden-import PIL.PngImagePlugin `
+            --hidden-import PIL.JpegImagePlugin `
             app.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Deal-Editor-${{ runner.os }}
-          path: |
-            dist/Deal-Editor-Linux
-            dist/Deal-Editor
-            dist/Deal-Editor.app
-          if-no-files-found: warn
+          name: ${{ env.APP_NAME }}-Windows-v${{ needs.version.outputs.tag }}
+          path: dist/${{ env.APP_NAME }}/
+          if-no-files-found: error
+
+  release:
+    needs: [version, linux, macos, windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ env.APP_NAME }}-*
+          merge-multiple: false
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "${{ env.APP_NAME }} ${{ needs.version.outputs.tag }}"
+          files: |
+            ${{ env.APP_NAME }}-Linux-*/
+            ${{ env.APP_NAME }}-macOS-*/
+            ${{ env.APP_NAME }}-Windows-*/
+          generate_release_notes: true
